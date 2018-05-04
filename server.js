@@ -1,7 +1,6 @@
 // dependencies
 const express = require('express');
 const session = require('express-session');
-const validate = require('mongoose-validate');
 const bodyParser = require('body-parser');
 const path = require('path');
 const favicon = require('serve-favicon');
@@ -32,7 +31,7 @@ app.set('view engine', 'ejs');
 const UserSchema = new mongoose.Schema({
     first_name: {type: String, required: true},
     last_name: {type: String, required: true},
-    email: {type: String, required: true, lowercase: true, unique: true, validate: [validate.email, 'invalid email address']},
+    email: {type: String, required: true, lowercase: true, unique: true},
     passwordHash: {type: String, required: true}
 }, {timestamps: true})
 
