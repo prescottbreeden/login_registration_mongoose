@@ -28,11 +28,11 @@ app.use(express.static(path.join(__dirname, './bower_components')));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-mongoose.connect('mongod://localhost:27017/login_reg')
-    .then(() => {
+mongoose.connect('mongodb://localhost:27017/login_reg')
+    .then(success => {
         console.log("connected to db");
     })
-    .catch(() => {
+    .catch(err => {
         console.log("unable to connect to database");
     })
 
@@ -40,7 +40,7 @@ mongoose.connect('mongod://localhost:27017/login_reg')
 const UserSchema = new mongoose.Schema({
     first_name: {type: String, required: [true, 'First name cannot be blank']},
     last_name: {type: String, required: [true, 'Last name cannot be blank']},
-    email: {type: String, required: [true, 'Email cannot be blank'], lowercase: true, unique: true},
+    email: {type: String, required: [true, 'Email cannot be blank'], lowercase: true},
     password: {type: String, required: true}
 }, {timestamps: true})
 
@@ -51,62 +51,67 @@ app.get('/', (req, res, next) => {
     res.render('index');
 })
 
-
-app.post('/register', (req, res, next) => {
+app.post('/register', (req, res) => {
     // new user registration
+    var error_message = [];
     var password = req.body.password;
-    var cpassword = req.body.cpassword;
-    if(password != cpassword)
-    {
-        console.log('passwords do not match')
-        res.render('failed', {errors: "passwords do not match"});
-    }
-    else
-    {
-        bcrypt.hash(password, 10)
-            .then((hash) => {    
-                password = hash;
-            })
-            .catch((err) => {
-                console.log(err);
-            })
-
-        var user = new User({
-            first_name: req.body.first_name,
-            last_name: req.body.last_name,
-            email: req.body.email,
-            password: password
+    User.find({email: req.body.email})
+        .then(find => {
+            if(find.length > 0) {
+                error_message.push("email already exists")
+            }
+            else if(password === req.body.cpassword) {
+                bcrypt.hash(password, 10)
+                    .then(hash => {    
+                        password = hash;
+                        var user = new User({
+                            first_name: req.body.first_name,
+                            last_name: req.body.last_name,
+                            email: req.body.email,
+                            password: password
+                        })
+                        user.save()
+                        .then(user => {
+                            res.render('success', {user: user});
+                        })
+                        .catch(bad => {
+                            error_message.push(`${bad} happened`)
+                            res.render('failed', {errors: error_message});    
+                        })
+                    })
+                    .catch(bad => {
+                        error_message.push(`${bad} happened`)
+                    })
+            }
+            else {
+                error_message.push("passwords don't match");
+                res.render('failed', {errors: error_message});
+            }
         })
-
-        user.save()
-            .then((user) => {
-                console.log('successfully added a user!')
-                console.log(user);
-                res.render('success', {user: user});
-            })
-            .catch((err) => {
-                res.render('failed', {errors: err});
-                console.log(err);
-            })
-    }
+        .catch(bad => {
+            error_message.push(`${bad} happened`)
+            res.render('failed', {errors: error_message});
+        })
 })
 
 // user login
-app.post('/login', (req, res, next) => {
-    User.findOne({email: req.body.email})
-        .then((user) => {
-            if(user.password !== req.body.password)
-            {
-                console.log("password doesn't match stored password")
-            }
-            else
-            {
-                console.log(`${user.name} has logged in to server`);
-                res.render('success', {user: user});
-            }
+app.post('/login', (req, res) => {
+    var error_message = [];
+    User.findOne({email: req.body.login_email})
+        .then( user => {
+            bcrypt.compare(req.body.login_password, user.password)
+                .then(result => {
+                    console.log(`${user.name} has logged in to server`);
+                    res.render('success', {user: user});
+                })
+                .catch(err => {
+                    error_message.push('passwords do not match')
+                    res.render('failed', {errors: error_message});
+                })
         })
-        .catch((err) => {
-            console.log(err);
+        .catch( err => {
+            error_message.push('server failed')
+            res.render('failed', {errors: error_message});
         })
 })
 
