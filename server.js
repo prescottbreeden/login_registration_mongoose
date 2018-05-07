@@ -4,59 +4,54 @@ const session = require('express-session');
 const bodyParser = require('body-parser');
 const path = require('path');
 const favicon = require('serve-favicon');
-
-// mongoose
 const mongoose = require('mongoose');
-const url = 'mongod://localhost:27017/login_reg'
-mongoose.connect(url);
-
-// bcrypt
 const bcrypt = require('bcrypt');
-const saltrounds = 10;
-const myPlaintextPassword = 's0/\/\P4$$w0rD';
-const someOtherPlaintextPassword = 'not_bacon';
 
 const app = express();
 
-// app setup
-app.use(session({secret: "rubberbabybuggybumpers"}));
+// view engine setup
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
+
+// middleware
+app.use(session({
+    secret: "rubberbabybuggybumpers",
+    name: 'cookie_monster',
+    proxy: true,
+    resave: true,
+    saveUninitialized: true
+}));
 app.use(favicon(path.join(__dirname, './public', 'images', 'user-favicon.ico')));
 app.use(express.static(path.join(__dirname, './public')));
 app.use(express.static(path.join(__dirname, './bower_components')));
+app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.set('views', path.join('./views'));
-app.set('view engine', 'ejs');
+mongoose.connect('mongodb://localhost:27017/login_reg');
 
 // user schema
 const UserSchema = new mongoose.Schema({
     first_name: {type: String, required: true},
     last_name: {type: String, required: true},
     email: {type: String, required: true, lowercase: true, unique: true},
-    passwordHash: {type: String, required: true}
+    password: {type: String, required: true}
 }, {timestamps: true})
 
 mongoose.model('User', UserSchema);
 const User = mongoose.model('User');
 
-//----------------//
-//---- Routes ----//
-//----------------//
-
-// register and login forms
-app.get('/', function(req, res){
-
+app.get('/', function(req, res, next){
     res.render('index');
 })
 
-// new user registration
-app.post('/register', function(req, res) {
-    console.log("POST DATA", req.body);
+
+app.post('/register', function(req, res, next) {
+    // new user registration
     var password = req.body.password;
     var cpassword = req.body.cpassword;
     if(password != cpassword)
     {
         console.log('passwords do not match')
-        res.redirect('/');
+        res.redirect('/failed');
     }
     else
     {
@@ -64,36 +59,42 @@ app.post('/register', function(req, res) {
             first_name: req.body.first_name,
             last_name: req.body.last_name,
             email: req.body.email,
+            password: hash
         })
 
         user.save(function(err) {
             if(err) {
-                console.log('something went wrong')
-                res.render('/');
+                res.redirect('/failed', {errors: err});
+                console.log(err)
             } else {
                 console.log('successfully added a user!')
                 res.redirect('/success');
             }
         })
+
+        bcrypt.hash(password, 10, function(err, hash) {    
+   
+        })
     }
-    
 })
-
 // user login
-app.post('/login', function(req, res) {
-
+app.post('/login', function(req, res, next) {
     res.redirect('/');
 })
 
 // user in session redirect to success
-app.get('/success', function(req, res) {
-
+app.get('/success', function(req, res, next) {
     res.render('success')
 })
+// something went wrong
+app.get('/failed', function(req, res, next) {
+    res.render('failed')
+})
 
-//----------------//
-//-- End Routes --//
-//----------------//
+// catch 404 and forward to error handler
+app.use(function (req, res, next) {
+    return res.render('index');
+})
 
 app.listen(8000, function() {
     console.log("Power Overwhelming...")
