@@ -47,72 +47,78 @@ const UserSchema = new mongoose.Schema({
 mongoose.model('User', UserSchema);
 const User = mongoose.model('User');
 
-app.get('/', (req, res, next) => {
+app.get('/', function(req, res) {
     res.render('index');
 })
 
-app.post('/register', (req, res) => {
-    // new user registration
+app.post('/register', function(req, res) {
     var error_message = [];
     var password = req.body.password;
-    User.find({email: req.body.email})
-        .then(find => {
-            if(find.length > 0) {
+    User.find({email: req.body.email}, function(err, user) {
+        if(err){
+            error_message.push("server fail")
+        }
+        else {
+            if(user.length > 0) {
                 error_message.push("email already exists")
             }
             else if(password === req.body.cpassword) {
-                bcrypt.hash(password, 10)
-                    .then(hash => {    
+                bcrypt.hash(password, 10, function(err, hash) {
+                    if(err){
+                        error_message.push("server fail")
+                    }
+                    else {
                         password = hash;
-                        var user = new User({
+                        var newUser = new User({
                             first_name: req.body.first_name,
                             last_name: req.body.last_name,
                             email: req.body.email,
                             password: password
                         })
-                        user.save()
-                        .then(user => {
-                            res.render('success', {user: user});
+                        newUser.save(function(){
+                            res.render('success', {user: newUser});
                         })
-                        .catch(bad => {
-                            error_message.push(`${bad} happened`)
-                            res.render('failed', {errors: error_message});    
-                        })
-                    })
-                    .catch(bad => {
-                        error_message.push(`${bad} happened`)
-                    })
+                    }
+                })      
             }
             else {
-                error_message.push("passwords don't match");
+                error_message.push("something went wrong")
                 res.render('failed', {errors: error_message});
             }
-        })
-        .catch(bad => {
-            error_message.push(`${bad} happened`)
-            res.render('failed', {errors: error_message});
-        })
+        }
+    })                  
 })
 
 // user login
-app.post('/login', (req, res) => {
+app.post('/login', function(req, res) {
     var error_message = [];
-    User.findOne({email: req.body.login_email})
-        .then( user => {
-            bcrypt.compare(req.body.login_password, user.password)
-                .then(result => {
-                    console.log(`${user.name} has logged in to server`);
+    console.log(req.body.login_email);
+    User.findOne({email: req.body.login_email}, function(err, user) {
+        if(err){
+            error_message.push("shits fucked")
+        }
+        else if(user === null)
+        {
+            error_message.push("sigh....")
+        }
+        else {
+            bcrypt.compare(req.body.login_password, user.password, function(err, result) {
+                if(err) {
+                    error_message.push("still fucked, what did you expect?")
+                }
+                else {
                     res.render('success', {user: user});
-                })
-                .catch(err => {
-                    error_message.push('passwords do not match')
-                    res.render('failed', {errors: error_message});
-                })
-        })
-        .catch( err => {
-            error_message.push('server failed')
+                }
+            })
+        }
+        if(error_message.length > 0) {
             res.render('failed', {errors: error_message});
-        })
+        }
+    })
+        
+        
+            
+    
 })
 
 // user in session redirect to success
